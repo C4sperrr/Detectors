@@ -68,4 +68,17 @@ Bu proje, modern işletim sistemleri üzerinde çalışan gelişmiş tehdit tesp
 
 ---
 
-## 🌐 Uç Bilgi İşlem ve IoT Cihazlarında Hafif Dedektörler (Lightweight Detectors on Edge
+## 🌐 Uç Bilgi İşlem ve IoT Cihazlarında Hafif Dedektörler (Lightweight Detectors on Edge & IoT Devices)
+
+**Açıklama:** Kısıtlı işlem gücüne, belleğe ve enerjiye sahip uç bilgi işlem (edge computing) ve Nesnelerin İnterneti (IoT) cihazları için özel olarak optimize edilmiş, düşük kaynak tüketen yabancı yazılım tespit mekanizmalarıdır. Bu dedektörler genellikle mikro-YZ modelleri veya davranışsal analizin basitleştirilmiş versiyonlarını kullanır.  
+**Potariyel Etkiler ve Uygulama Alanları:** Akıllı şehirler, endüstriyel IoT, akıllı ev cihazları ve bağlı araçlar gibi alanlarda cihaz güvenliğini artıracak. Dağıtık ağlarda siber saldırılara karşı ilk savunma hattını oluşturacak.  
+**Kaynak/Referans:** IEEE IoT Journal, endüstriyel kontrol sistemleri (ICS) güvenlik standartları.
+
+---
+
+## 🔐 Sürekli Doğrulama ve Sıfır Güven Mimarisi Uygulamaları (Continuous Verification & Zero Trust Architecture Implementations)
+
+**Açıklama:** Hiçbir varlığın (kullanıcı, cihaz, uygulama) ağ içinde veya dışında varsayılan olarak güvenilmediği bir güvenlik modelidir. Dedektörler, her erişim talebini ve sistem davranışını sürekli olarak doğrular. Yabancı yazılımların yayılmasını kısıtlamak ve yetkisiz erişimi engellemek için her etkileşim anında kontroller uygular.  
+**Potansiyel Etkiler ve Uygulama Alanları:** Kurumsal ağ güvenliğinde ve bulut ortamlarında siber saldırıların yayılma yüzeyini önemli ölçüde azaltacak. Uzaktan çalışma modellerinin ve hibrit bulutların artmasıyla 2025'te yaygın bir güvenlik paradigması haline gelecek.  
+**Kaynak/Referans:** NIST "Zero Trust Architecture" dokümantasyonu, Forrester Research "Zero Trust Framework" raporları.
+
