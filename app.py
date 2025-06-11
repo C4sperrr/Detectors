@@ -263,3 +263,324 @@ Olay Tetikleme: İşlenmiş bu değerleri daha sonra EventDetector sınıfının
 Sürekli Çalışma: Bu modülleri, veri toplama modülünden gelen verileri sürekli dinleyen bir ana döngü (örneğin while True döngüsü) içinde kullanmalısın.
 
 
+Kullanıcı Arayüzü
+
+1. Konsol Tabanlı Arayüz
+En basit kullanıcı arayüzü, verileri doğrudan konsola yazdırmaktır. Bu, özellikle hata ayıklama ve projenin başlangıç aşamalarında hızlı geri bildirim almak için kullanışlıdır.
+
+Önceki bölümlerdeki SensorDataProcessor ve EventDetector sınıflarını varsayarak, ana döngüde bu çıktıları nasıl gösterebileceğine dair bir örnek:
+
+import serial
+import time
+import pandas as pd
+import numpy as np # SensorDataProcessor için gerekli
+
+# Önceki bölümlerden SensorDataProcessor ve EventDetector sınıflarını buraya kopyala veya import et
+# Basitlik adına burada doğrudan tanımlıyorum:
+
+class SensorDataProcessor:
+    def clean_data(self, df):
+        if isinstance(df, pd.Series):
+            df = df.fillna(method='ffill')
+            df = df.fillna(method='bfill')
+        elif isinstance(df, pd.DataFrame):
+            df = df.fillna(method='ffill')
+            df = df.fillna(method='bfill')
+        return df
+
+    def apply_moving_average_filter(self, series, window_size=5):
+        return series.rolling(window=window_size, min_periods=1).mean()
+
+    def normalize_data(self, series):
+        min_val = series.min()
+        max_val = series.max()
+        if max_val == min_val:
+            return pd.Series([0.0] * len(series), index=series.index)
+        return (series - min_val) / (max_val - min_val)
+
+    def process_sensor_data(self, data_series, window_size=5):
+        if not isinstance(data_series, pd.Series):
+            data_series = pd.Series(data_series)
+        cleaned_data = self.clean_data(data_series)
+        filtered_data = self.apply_moving_average_filter(cleaned_data, window_size)
+        normalized_data = self.normalize_data(filtered_data)
+        return normalized_data
+
+class EventDetector:
+    def detect_temperature_event(self, current_temperature, threshold_high=28.0, threshold_low=10.0):
+        if current_temperature > threshold_high:
+            return "YuksekSicaklikAlarm", f"Sıcaklık eşiği aşıldı: {current_temperature}°C"
+        elif current_temperature < threshold_low:
+            return "DusukSicaklikAlarm", f"Sıcaklık çok düşük: {current_temperature}°C"
+        return None, None
+
+    def detect_motion_event(self, current_motion_value, motion_threshold=0.5):
+        if current_motion_value > motion_threshold:
+            return "HareketAlgilandi", "Hareket algılandı!"
+        return None, None
+
+    def detect_gas_event(self, current_gas_level, safe_threshold=0.3):
+        if current_gas_level > safe_threshold:
+            return "GazSizintisiAlarm", f"Tehlikeli gaz seviyesi algılandı: {current_gas_level}"
+        return None, None
+
+    def monitor_data_stream(self, processed_data_dict):
+        events = []
+        # Not: Burada tek bir EventDetector instance'ı kullanıyoruz
+        # Eğer bu sınıfın metotları statik olsaydı self. yerine EventDetector.method() kullanabilirdik.
+        # Basitlik adına, doğrudan metotları çağırıyorum.
+        
+        if "Sicaklik" in processed_data_dict:
+            event_type, message = self.detect_temperature_event(processed_data_dict["Sicaklik"])
+            if event_type:
+                events.append({'type': event_type, 'message': message, 'value': processed_data_dict["Sicaklik"]})
+        
+        if "Hareket" in processed_data_dict:
+            # Hareket sensörü genellikle 0 veya 1 döndürür. Normalleştirme sonrası 0-1 aralığında olacaktır.
+            event_type, message = self.detect_motion_event(processed_data_dict["Hareket"])
+            if event_type:
+                events.append({'type': event_type, 'message': message, 'value': processed_data_dict["Hareket"]})
+        
+        if "Gaz" in processed_data_dict:
+            event_type, message = self.detect_gas_event(processed_data_dict["Gaz"])
+            if event_type:
+                events.append({'type': event_type, 'message': message, 'value': processed_data_dict["Gaz"]})
+                
+        return events
+
+
+# Seri port ayarları
+SERIAL_PORT = 'COM3'  # Kendi portuna göre ayarla!
+BAUD_RATE = 9600
+
+processor = SensorDataProcessor()
+detector = EventDetector()
+
+def run_console_interface():
+    ser = None
+    try:
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        time.sleep(2)
+        print(f"Seri port '{SERIAL_PORT}' başarıyla açıldı. Veriler okunuyor...")
+
+        while True:
+            if ser.in_waiting > 0:
+                line = ser.readline().decode('utf-8').strip()
+                print(f"\nHam Veri: {line}")
+
+                processed_data_dict = {}
+                try:
+                    parts = line.split(',')
+                    for part in parts:
+                        key_value = part.split(':')
+                        if len(key_value) == 2:
+                            key = key_value[0].strip()
+                            value = float(key_value[1].strip())
+                            
+                            # Burada işleme mantığını uygula
+                            # Tek bir değer için basit işleme yapılıyor, daha karmaşık senaryolar için bir geçmiş tutulmalı
+                            # Örnek: sıcaklık için hareketli ortalama, ama tek değer için etkisi sınırlı.
+                            processed_value_series = processor.process_sensor_data(pd.Series([value]), window_size=1)
+                            processed_data_dict[key] = processed_value_series.iloc[-1] # En son işlenmiş değeri al
+                            
+                            print(f"  -> İşlenmiş {key}: {processed_data_dict[key]:.2f}")
+
+                    # Olay tespiti
+                    detected_events = detector.monitor_data_stream(processed_data_dict)
+                    if detected_events:
+                        for event in detected_events:
+                            print(f"*** [OLAY] {event['type']}: {event['message']} ***")
+
+                except ValueError as e:
+                    print(f"Veri ayrıştırma hatası: {e} - Hatalı satır: {line}")
+                except Exception as e:
+                    print(f"Genel hata işleme: {e}")
+
+            time.sleep(0.1)
+
+    except serial.SerialException as e:
+        print(f"Hata: Seri port açılamadı '{SERIAL_PORT}'. {e}")
+        print("Lütfen portun doğru olduğundan ve başka bir uygulama tarafından kullanılmadığından emin olun.")
+    except KeyboardInterrupt:
+        print("Program kullanıcı tarafından sonlandırıldı.")
+    finally:
+        if ser and ser.is_open:
+            ser.close()
+            print("Seri port kapatıldı.")
+
+# run_console_interface() # Konsol arayüzünü çalıştırmak için bu satırı etkinleştir
+
+Konsol Arayüzünün Çalışma Mantığı:
+
+Arduino'dan gelen ham veri satırını okur.
+Her bir sensör verisini (örn. "Sicaklik", "Nem") ayrıştırır.
+SensorDataProcessor kullanarak her bir sensör verisini (örneğin sadece temizleme ve normalleştirme) işler.
+EventDetector kullanarak işlenmiş verilere göre olayları tespit eder.
+Hem işlenmiş sensör değerlerini hem de algılanan olayları konsola yazdırır.
+
+2. Basit Grafiksel Kullanıcı Arayüzü (Tkinter)
+Tkinter, Python'ın standart GUI kütüphanesidir ve basit arayüzler oluşturmak için oldukça uygundur. Bu örnekte, sıcaklık ve hareket durumunu gösteren etiketler ile algılanan olayları listeleyen bir metin alanı kullanacağız.
+
+import tkinter as tk
+from tkinter import scrolledtext
+import threading
+import serial
+import time
+import pandas as pd
+import numpy as np
+
+# Önceki bölümlerden SensorDataProcessor ve EventDetector sınıflarını buraya kopyala veya import et
+# (Yukarıdaki konsol örneğindeki gibi bu dosya içinde tanımlandığını varsayıyorum)
+
+# Seri port ayarları
+SERIAL_PORT = 'COM3'  # Kendi portuna göre ayarla!
+BAUD_RATE = 9600
+
+processor = SensorDataProcessor()
+detector = EventDetector()
+
+class SensorApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("Dedektör Sistemi")
+
+        self.is_running = True
+        self.serial_port = None
+        
+        # UI Bileşenleri
+        self.lbl_temp = tk.Label(master, text="Sıcaklık: N/A", font=("Helvetica", 16))
+        self.lbl_temp.pack(pady=10)
+
+        self.lbl_motion = tk.Label(master, text="Hareket Durumu: N/A", font=("Helvetica", 16))
+        self.lbl_motion.pack(pady=10)
+
+        self.events_label = tk.Label(master, text="Algılanan Olaylar:", font=("Helvetica", 14))
+        self.events_label.pack(pady=5)
+
+        self.events_text = scrolledtext.ScrolledText(master, width=50, height=10, font=("Helvetica", 12))
+        self.events_text.pack(pady=10)
+        self.events_text.config(state=tk.DISABLED) # Kullanıcının yazmasını engelle
+
+        self.status_label = tk.Label(master, text="Durum: Bağlantı bekleniyor...", font=("Helvetica", 10), fg="blue")
+        self.status_label.pack(pady=5)
+
+        self.btn_exit = tk.Button(master, text="Çıkış", command=self.on_closing, font=("Helvetica", 12))
+        self.btn_exit.pack(pady=10)
+
+        # Seri port okuma işlemini ayrı bir thread'de başlat
+        self.serial_thread = threading.Thread(target=self.read_serial_data, daemon=True)
+        self.serial_thread.start()
+
+    def update_ui(self, temp=None, motion=None, events=None):
+        if temp is not None:
+            self.lbl_temp.config(text=f"Sıcaklık: {temp:.2f}°C")
+        if motion is not None:
+            status = "Algılandı" if motion > 0.5 else "Yok" # Normalleştirilmiş değer için
+            self.lbl_motion.config(text=f"Hareket Durumu: {status}")
+        
+        if events:
+            self.events_text.config(state=tk.NORMAL)
+            for event in events:
+                self.events_text.insert(tk.END, f"[{time.strftime('%H:%M:%S')}] {event['type']}: {event['message']}\n")
+            self.events_text.yview(tk.END) # En alta kaydır
+            self.events_text.config(state=tk.DISABLED)
+
+    def read_serial_data(self):
+        try:
+            self.serial_port = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+            time.sleep(2)
+            self.status_label.config(text=f"Durum: '{SERIAL_PORT}' bağlı.", fg="green")
+
+            while self.is_running:
+                if self.serial_port.in_waiting > 0:
+                    line = self.serial_port.readline().decode('utf-8').strip()
+                    # print(f"Raw: {line}") # Debug
+                    
+                    processed_data_dict = {}
+                    try:
+                        parts = line.split(',')
+                        current_temp = None
+                        current_motion = None
+                        
+                        for part in parts:
+                            key_value = part.split(':')
+                            if len(key_value) == 2:
+                                key = key_value[0].strip()
+                                value = float(key_value[1].strip())
+                                
+                                # Veri işleme (tek bir değer için basit)
+                                processed_value_series = processor.process_sensor_data(pd.Series([value]), window_size=1)
+                                processed_value = processed_value_series.iloc[-1]
+                                
+                                processed_data_dict[key] = processed_value
+                                
+                                if key == "Sicaklik":
+                                    current_temp = processed_value
+                                elif key == "Hareket":
+                                    current_motion = processed_value
+                        
+                        # Olay tespiti
+                        detected_events = detector.monitor_data_stream(processed_data_dict)
+                        
+                        # UI güncellemesini ana thread'de yap (thread safe)
+                        self.master.after(0, self.update_ui, current_temp, current_motion, detected_events)
+
+                    except ValueError as e:
+                        print(f"Veri ayrıştırma hatası (thread): {e} - Satır: {line}")
+                    except Exception as e:
+                        print(f"Genel hata (thread): {e}")
+                
+                time.sleep(0.1) # CPU kullanımını azalt
+
+        except serial.SerialException as e:
+            self.status_label.config(text=f"Hata: Seri port açılamadı. {e}", fg="red")
+            print(f"Seri port hatası: {e}")
+        except Exception as e:
+            self.status_label.config(text=f"Uygulama hatası: {e}", fg="red")
+            print(f"Uygulama hatası: {e}")
+        finally:
+            if self.serial_port and self.serial_port.is_open:
+                self.serial_port.close()
+                print("Seri port thread kapatıldı.")
+            self.status_label.config(text="Durum: Bağlantı kesildi.", fg="red")
+
+
+    def on_closing(self):
+        self.is_running = False
+        if self.serial_thread.is_alive():
+            self.serial_thread.join(timeout=2) # Thread'in bitmesini bekle
+        self.master.destroy() # GUI'yi kapat
+
+# Uygulamayı başlat
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SensorApp(root)
+    root.mainloop() # GUI'nin olay döngüsünü başlat
+
+##Tkinter Arayüzünün Çalışma Mantığı:
+
+1. SensorApp Sınıfı:
+Ana pencereyi ve UI bileşenlerini (etiketler, kaydırılabilir metin alanı, düğme) oluşturur.
+read_serial_data fonksiyonunu ayrı bir iş parçacığında (threading.Thread) başlatır. Bu önemlidir çünkü seri port okuma işlemi bloklayıcı olabilir ve GUI'nin donmasına neden olabilir.
+on_closing metodu, pencere kapatıldığında iş parçacığını güvenli bir şekilde sonlandırmak için çağrılır.
+
+2. read_serial_data Metodu (Ayrı Thread):
+Seri portu açar ve sürekli olarak veri okur.
+Okunan veriyi ayrıştırır ve SensorDataProcessor ile işler.
+EventDetector ile olayları tespit eder.
+self.master.after(0, self.update_ui, ...): Burası kritik! GUI güncellemelerinin ana iş parçacığında (main thread) yapılması gerekir. after() metodu, belirtilen fonksiyonu (burada update_ui) ana iş parçacığında belirli bir gecikmeden sonra (0ms yani hemen) çalıştırmasını sağlar.
+
+3. update_ui Metodu (Ana Thread):
+lbl_temp ve lbl_motion etiketlerini günceller.
+events_text kaydırılabilir metin alanına algılanan olayları ekler ve otomatik olarak en alta kaydırır.
+Metin alanına kullanıcının yazmasını engellemek için config(state=tk.DISABLED) kullanılır.
+
+Kurulum ve Çalıştırma:
+
+1. pyserial ve pandas: Bu kütüphanelerin kurulu olduğundan emin ol: pip install pyserial pandas numpy
+
+2. Arduino Kodu: Arduino'na yukarıdaki DHT11 örneğindeki seri veri gönderen kodu yükle.
+
+3. Seri Port Ayarı: Python kodundaki SERIAL_PORT = 'COM3' kısmını, Arduino'nun bağlı olduğu seri port adıyla değiştir.
+
+4. Çalıştırma: Python dosyasını çalıştır.
