@@ -39,7 +39,9 @@ Python'ı (tercihen 3.x) ve pip'i yükle.
 Sanal ortam (virtual environment) oluştur ve etkinleştir:
 
 python -m venv venv
+
 source venv/bin/activate  # Linux/macOS
+
 venv\Scripts\activate     # Windows
 
 Yukarıda belirtilen kütüphaneleri pip install komutuyla yükle:
