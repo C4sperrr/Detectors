@@ -112,7 +112,4 @@ PEP 8 gibi Python kodlama standartlarına uy.
 Sonuç  
 Bu yol haritası, dedektör projen için kapsamlı bir rehber sağlamaktadır. Her adımı titizlikle takip ederek ve en iyi uygulamaları benimseyerek sağlam, güvenilir ve işlevsel bir dedektör sistemi geliştirebilirsin. Unutma ki yazılım geliştirme iteratif bir süreçtir; bu nedenle geri bildirimlere açık ol ve gerektiğinde yol haritanı revize etmekten çekinme.
 
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-venv\Scripts\activate     # Windows
 
