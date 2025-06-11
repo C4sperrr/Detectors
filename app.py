@@ -73,3 +73,75 @@ Veri Ayrıştırma: Alınan string ("Sicaklik:25.50,Nem:60.20") virgülle (',') 
 Diğer Sensörler İçin Uygulama
 PIR Hareket Sensörü: Arduino tarafında PIR sensörünün dijital çıkışını (HIGH/LOW) okuyup seri porttan "Hareket Algılandı" veya "Hareket Yok" gibi mesajlar gönderebilirsin. Python tarafında bu mesajları kontrol edersin.
 MQ-2 Gaz Sensörü: Gaz sensörleri genellikle analog veri verir. Arduino'nun analogRead() fonksiyonu ile sensörden gelen voltaj değerini okuyup bu değeri Python'a gönderebilirsin. Python tarafında bu değeri gaz yoğunluğuna çevirebilirsin.
+
+
+
+##Veri İşleme ve Analiz Modülü
+Sensörlerden gelen ham veriler genellikle gürültülü veya tutarsız olabilir. Bu modülün amacı, bu ham verileri temizlemek, anlamlı hale getirmek ve belirlenen eşiklere veya basit istatistiksel analizlere göre "olayları" tanımlamaktır. Aşağıda Python kullanarak bu işlevleri nasıl uygulayacağına dair örnekler bulacaksın.
+
+1. Ham Sensör Verilerini Temizleme, Filtreleme ve Normalleştirme
+Sensör verilerinin kalitesini artırmak için çeşitli ön işleme teknikleri kullanabiliriz.
+
+Temizleme: Eksik veya hatalı verileri (örn. NaN değerler) kaldırma veya doldurma.
+Filtreleme: Gürültüyü azaltmak için hareketli ortalama gibi yöntemler kullanma.
+Normalleştirme: Farklı sensörlerden gelen verileri ortak bir ölçeğe getirme (örn. 0-1 aralığına).
+
+##Örnek Python Kodu:
+import pandas as pd
+import numpy as np
+
+class SensorDataProcessor:
+    def __init__(self):
+        pass
+
+    def clean_data(self, df):
+        """
+        DataFrame'deki NaN değerleri önceki geçerli değerlerle doldurur.
+        İhtiyaca göre farklı temizleme stratejileri eklenebilir (örn. ortalama ile doldurma).
+        """
+        if isinstance(df, pd.Series):
+            df = df.fillna(method='ffill')
+            df = df.fillna(method='bfill') # Eğer ilk değer NaN ise
+        elif isinstance(df, pd.DataFrame):
+            df = df.fillna(method='ffill')
+            df = df = df.fillna(method='bfill') # Eğer ilk değerler NaN ise
+        return df
+
+    def apply_moving_average_filter(self, series, window_size=5):
+        """
+        Bir Pandas Serisi'ne hareketli ortalama filtresi uygular.
+        Gürültüyü azaltmak için kullanılır.
+        """
+        return series.rolling(window=window_size, min_periods=1).mean()
+
+    def normalize_data(self, series):
+        """
+        Veri Serisi'ni Min-Max normalizasyonu kullanarak 0-1 aralığına ölçekler.
+        """
+        min_val = series.min()
+        max_val = series.max()
+        if max_val == min_val: # Tüm değerler aynıysa sıfıra bölme hatasını önle
+            return pd.Series([0.0] * len(series), index=series.index)
+        return (series - min_val) / (max_val - min_val)
+
+    def process_sensor_data(self, data_series, window_size=5):
+        """
+        Ham sensör verilerini temizleme, filtreleme ve normalleştirme işlemlerini sırayla uygular.
+        """
+        # Veriyi Pandas Serisi'ne dönüştür
+        if not isinstance(data_series, pd.Series):
+            data_series = pd.Series(data_series)
+
+        # 1. Temizleme
+        cleaned_data = self.clean_data(data_series)
+        print(f"Temizlenmiş veri (ilk 5): {cleaned_data.head()}")
+
+        # 2. Filtreleme
+        filtered_data = self.apply_moving_average_filter(cleaned_data, window_size)
+        print(f"Filtrelenmiş veri (ilk 5): {filtered_data.head()}")
+
+        # 3. Normalleştirme
+        normalized_data = self.normalize_data(filtered_data)
+        print(f"Normalleştirilmiş veri (ilk 5): {normalized_data.head()}")
+
+        return normalized_data
