@@ -145,3 +145,121 @@ class SensorDataProcessor:
         print(f"Normalleştirilmiş veri (ilk 5): {normalized_data.head()}")
 
         return normalized_data
+
+##Örnek Kullanım:
+# Örnek ham sıcaklık verisi (NaN değerler ve gürültü içeriyor)
+raw_temperature_data = [22.1, 22.3, np.nan, 22.8, 23.0, 22.9, 28.5, 23.2, 23.1, 23.0]
+processor = SensorDataProcessor()
+processed_temp_data = processor.process_sensor_data(raw_temperature_data, window_size=3)
+
+# Örnek ham hareket sensörü verisi (0 ve 1'lerden oluşan, gürültülü olabilir)
+# Genellikle hareket sensörleri zaten temiz dijital veri verir, ancak burada örnek amaçlı gürültü ekleyelim.
+raw_motion_data = [0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0]
+# Motion sensörleri için normalizasyon ve filtreleme genellikle anlamsızdır,
+# ancak temizleme fonksiyonu yine de kullanılabilir (örneğin -1 gibi hatalı değerler için).
+# processor.clean_data(pd.Series(raw_motion_data))
+
+2. Eşik Değer Tabanlı veya Basit İstatistiksel Analizlerle Olay Tanımlama
+Veriler temizlenip işlendikten sonra, belirli koşullar altında "olayları" tespit edebiliriz.
+
+class EventDetector:
+    def __init__(self):
+        pass
+
+    def detect_temperature_event(self, current_temperature, threshold_high=28.0, threshold_low=10.0):
+        """
+        Sıcaklık eşik değerlerine göre olayları algılar.
+        """
+        if current_temperature > threshold_high:
+            return "YuksekSicaklikAlarm", f"Sıcaklık eşiği aşıldı: {current_temperature}°C"
+        elif current_temperature < threshold_low:
+            return "DusukSicaklikAlarm", f"Sıcaklık çok düşük: {current_temperature}°C"
+        return None, None # Olay yok
+
+    def detect_motion_event(self, current_motion_value, motion_threshold=0.5):
+        """
+        Hareket sensörü verisine göre hareket olayını algılar.
+        Dijital sensörler için 0 veya 1 doğrudan kontrol edilebilir.
+        Analog sensörler veya işlenmiş veriler için eşik kullanılabilir.
+        """
+        if current_motion_value > motion_threshold: # PIR için 1 ise hareket var
+            return "HareketAlgilandi", "Hareket algılandı!"
+        return None, None
+
+    def detect_gas_event(self, current_gas_level, safe_threshold=0.3):
+        """
+        Gaz sensörü verisine göre gaz sızıntısı olayını algılar (normalleştirilmiş değerler için).
+        """
+        if current_gas_level > safe_threshold:
+            return "GazSizintisiAlarm", f"Tehlikeli gaz seviyesi algılandı: {current_gas_level}"
+        return None, None
+
+    def monitor_data_stream(self, processed_data_stream):
+        """
+        Gelen işlenmiş veri akışını sürekli izler ve olayları raporlar.
+        processed_data_stream: dictionary of sensor_name: value
+        """
+        events = []
+        event_detector = EventDetector()
+
+        for sensor_name, value in processed_data_stream.items():
+            if sensor_name == "Sicaklik":
+                event_type, message = event_detector.detect_temperature_event(value)
+                if event_type:
+                    events.append({'type': event_type, 'message': message, 'value': value})
+            elif sensor_name == "Hareket":
+                event_type, message = event_detector.detect_motion_event(value)
+                if event_type:
+                    events.append({'type': event_type, 'message': message, 'value': value})
+            elif sensor_name == "Gaz":
+                event_type, message = event_detector.detect_gas_event(value)
+                if event_type:
+                    events.append({'type': event_type, 'message': message, 'value': value})
+            # Daha fazla sensör tipi eklenebilir
+
+        return events
+
+ ##Örnek Kullanım:
+
+ event_detector = EventDetector()
+
+# Tek bir sıcaklık değeri için olay tespiti
+temp_value_1 = 29.1
+event_type, message = event_detector.detect_temperature_event(temp_value_1)
+if event_type:
+    print(f"Olay: {event_type} - Mesaj: {message}")
+else:
+    print(f"Sıcaklık ({temp_value_1}°C) eşikler içinde.")
+
+temp_value_2 = 25.0
+event_type, message = event_detector.detect_temperature_event(temp_value_2)
+if event_type:
+    print(f"Olay: {event_type} - Mesaj: {message}")
+else:
+    print(f"Sıcaklık ({temp_value_2}°C) eşikler içinde.")
+
+
+# Gerçek zamanlı akış simülasyonu
+print("\nGerçek Zamanlı Veri Akışı İzleme:")
+sample_data_stream_1 = {"Sicaklik": 27.5, "Nem": 0.65, "Hareket": 0.0, "Gaz": 0.2}
+detected_events = event_detector.monitor_data_stream(sample_data_stream_1)
+if detected_events:
+    for event in detected_events:
+        print(f"[{event['type']}] {event['message']} (Değer: {event['value']})")
+else:
+    print("Herhangi bir olay algılanmadı.")
+
+sample_data_stream_2 = {"Sicaklik": 29.5, "Nem": 0.60, "Hareket": 1.0, "Gaz": 0.4}
+detected_events = event_detector.monitor_data_stream(sample_data_stream_2)
+if detected_events:
+    for event in detected_events:
+        print(f"[{event['type']}] {event['message']} (Değer: {event['value']})")
+else:
+    print("Herhangi bir olay algılanmadı.")
+
+Entegrasyon Notları:
+Veri Akışı: Yukarıdaki SensorDataProcessor sınıfını, Arduino'dan pyserial ile okuduğun verilere uygulayabilirsin. Okuduğun her sensör değerini SensorDataProcessor'ın process_sensor_data metoduna göndererek temizlenmiş, filtrelenmiş ve normalleştirilmiş halini alırsın.
+Olay Tetikleme: İşlenmiş bu değerleri daha sonra EventDetector sınıfının ilgili metotlarına veya monitor_data_stream metoduna göndererek olayları algılayabilirsin.
+Sürekli Çalışma: Bu modülleri, veri toplama modülünden gelen verileri sürekli dinleyen bir ana döngü (örneğin while True döngüsü) içinde kullanmalısın.
+
+
